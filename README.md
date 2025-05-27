@@ -1,0 +1,1 @@
+lfo~: a multi waveform LFO with offset, depth, shape, random and bang on pahase reset

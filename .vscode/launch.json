@@ -1,0 +1,25 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Debug Pd External",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "/usr/bin/pd", // <== path to Pure Data
+        "args": [
+          "-stderr",
+          "-guiport", "0",
+          "/home/thomas/Documents/data/Music Production/pd/extensions/adsr/test/adsr~-help.pd" // <== path to test patch
+        ],
+        "stopAtEntry": false,
+        "cwd": "${workspaceFolder}",
+        "environment": [],
+        "externalConsole": true,
+        "MIMode": "gdb",
+        "setupCommands": [
+          { "description": "Enable pretty-printing", "text": "-enable-pretty-printing", "ignoreFailures": true }
+        ]
+      }
+    ]
+  }
+  
