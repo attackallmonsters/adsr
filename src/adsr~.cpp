@@ -10,11 +10,16 @@ static t_class *adsr_tilde_class;
 enum class t_adsr_phase
 {
     Idle,
+    Startup,
     Attack,
     Decay,
     Sustain,
     Release
 };
+
+// typedef struct enter_phase enter_phase;
+typedef struct t_adsr_tilde t_adsr_tilde;
+typedef void (*adsr_phase_ptr)(t_adsr_tilde *);
 
 // === Main object structure ===
 struct t_adsr_tilde
@@ -23,26 +28,110 @@ struct t_adsr_tilde
     t_outlet *x_out;
 
     t_adsr_phase phase;
-    double samplerate;
+    adsr_phase_ptr phaseFunc;
+    double samplerate, sampleratems;
     double attackTime, decayTime, sustainLevel, releaseTime;
     double attackShape, releaseShape;
     double currentEnv, releaseStartEnv;
-    int attackPhaseSamples, decayPhaseSamples, releasePhaseSamples;
+    bool startAtCurrentEnv;
+    int attackPhaseSamples, decayPhaseSamples, releasePhaseSamples, startupPhaseSamples;
     int currentSample;
 };
+
+// Preliminary definition enter_phase
+void enter_phase(t_adsr_tilde *x, t_adsr_phase newPhase);
 
 // === Helper: shaped progress with exponential curvature ===
 double shaped_progress(double p, double shape)
 {
     if (shape == 1.0)
         return p;
+
     return pow(p, shape);
+}
+
+void startupPhase(t_adsr_tilde *x)
+{
+    double p = static_cast<double>(x->currentSample) / x->startupPhaseSamples;
+    x->currentEnv = shaped_progress(static_cast<double>(x->currentSample) / x->startupPhaseSamples, x->attackShape);
+
+    if (++x->currentSample >= x->startupPhaseSamples)
+        enter_phase(x, t_adsr_phase::Attack);
+}
+
+void attackPhase(t_adsr_tilde *x)
+{
+    double p = static_cast<double>(x->currentSample) / x->attackPhaseSamples;
+    x->currentEnv = shaped_progress(p, x->attackShape);
+
+    if (++x->currentSample >= x->attackPhaseSamples)
+        enter_phase(x, t_adsr_phase::Decay);
+}
+
+void decayPhase(t_adsr_tilde *x)
+{
+    double p = static_cast<double>(x->currentSample) / x->decayPhaseSamples;
+    x->currentEnv = (1.0 - p) * (1.0 - x->sustainLevel) + x->sustainLevel;
+
+    if (++x->currentSample >= x->decayPhaseSamples)
+        enter_phase(x, t_adsr_phase::Sustain);
+}
+
+void sustainPhase(t_adsr_tilde *x)
+{
+    x->currentEnv = x->sustainLevel;
+}
+
+void releasePhase(t_adsr_tilde *x)
+{
+    double p = static_cast<double>(x->currentSample) / x->releasePhaseSamples;
+    x->currentEnv = shaped_progress(1.0 - p, x->releaseShape) * x->releaseStartEnv;
+
+    if (++x->currentSample >= x->releasePhaseSamples)
+        enter_phase(x, t_adsr_phase::Idle);
+}
+
+void idlePhase(t_adsr_tilde *x)
+{
+    x->currentEnv = 0.0;
 }
 
 // === Enter a new phase and prepare sample counters ===
 void enter_phase(t_adsr_tilde *x, t_adsr_phase newPhase)
 {
     x->phase = newPhase;
+
+    switch (newPhase)
+    {
+    case t_adsr_phase::Startup:
+        x->phaseFunc = startupPhase;
+        break;
+
+    case t_adsr_phase::Attack:
+        x->phaseFunc = attackPhase;
+        break;
+
+    case t_adsr_phase::Decay:
+        x->phaseFunc = decayPhase;
+        break;
+
+    case t_adsr_phase::Sustain:
+        x->phaseFunc = sustainPhase;
+        break;
+
+    case t_adsr_phase::Release:
+        x->phaseFunc = releasePhase;
+        break;
+
+    case t_adsr_phase::Idle:
+        x->phaseFunc = idlePhase;
+        break;
+
+    default:
+        x->phaseFunc = idlePhase;
+        break;
+    }
+
     x->currentSample = 0;
 }
 
@@ -55,58 +144,24 @@ t_int *adsr_perform(t_int *w)
 
     while (n--)
     {
-        double p, env;
-
-        switch (x->phase)
-        {
-        case t_adsr_phase::Attack:
-            p = static_cast<double>(x->currentSample) / x->attackPhaseSamples;
-            env = shaped_progress(p, x->attackShape);
-            if (++x->currentSample >= x->attackPhaseSamples)
-                enter_phase(x, t_adsr_phase::Decay);
-            break;
-        case t_adsr_phase::Decay:
-            p = static_cast<double>(x->currentSample) / x->decayPhaseSamples;
-            env = (1.0 - p) * (1.0 - x->sustainLevel) + x->sustainLevel;
-            if (++x->currentSample >= x->decayPhaseSamples)
-                enter_phase(x, t_adsr_phase::Sustain);
-            break;
-        case t_adsr_phase::Sustain:
-            env = x->sustainLevel;
-            break;
-        case t_adsr_phase::Release:
-            p = static_cast<double>(x->currentSample) / x->releasePhaseSamples;
-            env = shaped_progress(1.0 - p, x->releaseShape) * x->releaseStartEnv;
-            if (++x->currentSample >= x->releasePhaseSamples)
-                enter_phase(x, t_adsr_phase::Idle);
-            break;
-        default:
-            env = 0.0;
-        }
-
-        x->currentEnv = env;
-        *out++ = static_cast<t_sample>(env);
+        x->phaseFunc(x);
+        *out++ = static_cast<t_sample>(x->currentEnv);
     }
     return (w + 4);
-}
-
-void adsr_dsp(t_adsr_tilde *x, t_signal **sp)
-{
-    x->samplerate = sp[0]->s_sr;
-    dsp_add(adsr_perform, 3, x, sp[0]->s_vec, sp[0]->s_n);
 }
 
 // === Trigger methods ===
 void adsr_trigger_start(t_adsr_tilde *x)
 {
-    x->currentSample = 0;
-    x->currentEnv =0;
-    enter_phase(x, t_adsr_phase::Attack);
+    if (!x->startAtCurrentEnv)
+        enter_phase(x, t_adsr_phase::Startup);
+    else
+        enter_phase(x, t_adsr_phase::Attack);
 }
 
 void adsr_trigger_stop(t_adsr_tilde *x)
 {
-    if (x->phase != t_adsr_phase::Idle )
+    if (x->phase != t_adsr_phase::Idle)
     {
         x->releaseStartEnv = x->currentEnv;
         enter_phase(x, t_adsr_phase::Release);
@@ -116,20 +171,21 @@ void adsr_trigger_stop(t_adsr_tilde *x)
 // === Parameter setters with clamping ===
 void adsr_attack(t_adsr_tilde *x, t_floatarg f)
 {
-    x->attackTime = std::clamp(static_cast<double>(f), 0.0, 10000.0);                              // time in milliseconds
-    x->attackPhaseSamples = std::max(1, static_cast<int>((x->attackTime / 1000) * x->samplerate)); // Samples to process
+    x->attackTime = std::clamp(static_cast<double>(f), 0.0, 10000.0);                       // time in milliseconds
+    x->attackPhaseSamples = std::max(1, static_cast<int>(x->attackTime * x->sampleratems)); // Samples to process
 }
 
 void adsr_decay(t_adsr_tilde *x, t_floatarg f)
 {
-    x->decayTime = std::clamp(static_cast<double>(f), 0.0, 10000.0);                             // time in milliseconds
-    x->decayPhaseSamples = std::max(1, static_cast<int>((x->decayTime / 1000) * x->samplerate)); // Samples to process
+    x->decayTime = std::clamp(static_cast<double>(f), 0.0, 10000.0);                      // time in milliseconds
+    x->decayPhaseSamples = std::max(1, static_cast<int>(x->decayTime * x->sampleratems)); // Samples to process
 }
 
 void adsr_release(t_adsr_tilde *x, t_floatarg f)
 {
-    x->releaseTime = std::clamp(static_cast<double>(f), 0.0, 10000.0);                               // time in milliseconds
-    x->releasePhaseSamples = std::max(1, static_cast<int>((x->releaseTime / 1000) * x->samplerate)); // Samples to process
+    double t = (x->startAtCurrentEnv) ? 5 : 0;
+    x->releaseTime = std::clamp(static_cast<double>(f - t), 0.0, 10000.0);                    // time in milliseconds
+    x->releasePhaseSamples = std::max(1, static_cast<int>(x->releaseTime * x->sampleratems)); // Samples to process
 }
 
 void adsr_sustain(t_adsr_tilde *x, t_floatarg f)
@@ -147,13 +203,23 @@ void adsr_releaseshape(t_adsr_tilde *x, t_floatarg f)
     x->releaseShape = std::clamp(static_cast<double>(f), 0.01, 10.0); // 1.0 = linear
 }
 
+void adsr_dsp(t_adsr_tilde *x, t_signal **sp)
+{
+    x->samplerate = sp[0]->s_sr;
+    x->sampleratems = x->samplerate / 1000;
+    x->startupPhaseSamples = std::max(1, static_cast<int>(5 * x->sampleratems));
+    dsp_add(adsr_perform, 3, x, sp[0]->s_vec, sp[0]->s_n);
+}
+
 // === Object constructor ===
-void *adsr_new()
+void *adsr_new(t_floatarg f)
 {
     t_adsr_tilde *x = (t_adsr_tilde *)pd_new(adsr_tilde_class);
     x->x_out = outlet_new(&x->x_obj, &s_signal);
 
-    x->samplerate = 44100.0; // default until dsp is called
+    x->startAtCurrentEnv = f == 0.0;
+    x->samplerate = 44100.0; 
+    x->sampleratems = 44.1; 
     x->attackTime = 0.01;
     x->decayTime = 0.1;
     x->sustainLevel = 0.7;
@@ -161,6 +227,7 @@ void *adsr_new()
     x->attackShape = 1.0;
     x->releaseShape = 1.0;
     x->currentEnv = 0.0;
+    x->phaseFunc = idlePhase;
     x->phase = t_adsr_phase::Idle;
 
     return (void *)x;
@@ -174,7 +241,7 @@ extern "C"
         adsr_tilde_class = class_new(gensym("adsr~"),
                                      (t_newmethod)adsr_new,
                                      0, sizeof(t_adsr_tilde),
-                                     CLASS_DEFAULT, A_NULL);
+                                     CLASS_DEFAULT, A_DEFFLOAT, 0);
 
         class_addmethod(adsr_tilde_class, (t_method)adsr_dsp, gensym("dsp"), A_CANT, 0);
         CLASS_MAINSIGNALIN(adsr_tilde_class, t_adsr_tilde, currentEnv);
