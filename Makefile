@@ -18,7 +18,7 @@ CXXFLAGS = -Wall -Wextra -std=c++17 -fPIC -Iinclude -MMD -MP
 # === Directory layout ===
 SRC_DIR = src
 OBJ_DIR = obj
-BIN_DIR = bin
+BIN_DIR = out
 
 # === Pure Data sources ===
 PD_SOURCES = \
