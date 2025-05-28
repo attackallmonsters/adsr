@@ -71,7 +71,7 @@ void startupPhase(t_adsr_tilde *x)
 void attackPhase(t_adsr_tilde *x)
 {
     double p = static_cast<double>(x->currentSample) / (x->attackPhaseSamples);
-    x->currentEnv = power_lerp(x->phaseStartEnv, 1.0, p, x->attackShape);
+    x->currentEnv = power_lerp(x->phaseStartEnv, 1.0, p, 1.0);
 
     if (++x->currentSample >= x->attackPhaseSamples)
         enter_phase(x, t_adsr_phase::Decay);
