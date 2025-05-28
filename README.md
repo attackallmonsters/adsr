@@ -8,6 +8,6 @@
 * Sustain: hold until stop is triggered
 * Release: convex, concave oder linear from current envelope level to 0
 
-Binaries for x64 Linux and ARM can be found in folder bin.
+Binaries for x64/ARM Linux can be found in folder bin.
 
 Have fun!
