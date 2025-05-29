@@ -47,10 +47,12 @@ void enter_phase(t_adsr_tilde *x, t_adsr_phase newPhase);
 // Helper: shaped progress with exponential curvature (linear interpolation)
 double power_lerp(double start, double end, double p, double shape)
 {
-    /if (shape == 1.0)
+    if (shape == 1.0)
         return start + (end - start) * p;
 
-    double curved = descending ? 1.0 - pow(1.0 - p, shape) : pow(p, shape);
+    double curved = (end < start)
+        ? 1.0 - std::pow(1.0 - p, shape)
+        : std::pow(p, shape);
 
     return start + (end - start) * curved;
 }
@@ -207,36 +209,20 @@ void adsr_sustain(t_adsr_tilde *x, t_floatarg f)
     x->sustainLevel = std::clamp(static_cast<double>(f), 0.0, 1.0); // level in [0..1]
 }
 
+double map_shape_to_exponent(double f)
+{
+    double shape = std::clamp(f, -1.0, 1.0);
+    return (shape < 0.0) ? 1.0 + shape * 0.9 : 1.0 + shape * 9.0;
+}
+
 void adsr_attackshape(t_adsr_tilde *x, t_floatarg f)
 {
-    double shape = std::clamp(static_cast<double>(f), -1.0, 1.0);
-
-    if (shape < 0.0)
-    {
-        // Map [-1, 0] to [0.1, 1.0]
-        x->attackShape = 1.0 + shape * 0.9;
-    }
-    else
-    {
-        // Map [0, 1] to [1.0, 10.0]
-        x->attackShape = 1.0 + shape * 9.0;
-    }
+    x->attackShape = map_shape_to_exponent(f);
 }
 
 void adsr_releaseshape(t_adsr_tilde *x, t_floatarg f)
 {
-    double shape = std::clamp(static_cast<double>(f), -1.0, 1.0);
-
-    if (shape < 0.0)
-    {
-        // Map [-1, 0] to [0.1, 1.0]
-        x->releaseShape = 1.0 - shape * 9.0;
-    }
-    else
-    {
-        // Map [0, 1] to [1.0, 10.0]
-        x->releaseShape = 1.0 - shape * 0.9;
-    }
+    x->releaseShape = map_shape_to_exponent(f);
 }
 
 void adsr_dsp(t_adsr_tilde *x, t_signal **sp)
