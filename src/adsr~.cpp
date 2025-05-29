@@ -36,6 +36,7 @@ struct t_adsr_tilde
     bool startAtCurrentEnv;
     int attackPhaseSamples, decayPhaseSamples, releasePhaseSamples, startupPhaseSamples;
     int currentSample;
+    double gain;
 };
 
 // Startup time defines the time to move the env to zero in the first step
@@ -155,7 +156,7 @@ t_int *adsr_perform(t_int *w)
     while (n--)
     {
         x->phaseFunc(x);
-        *out++ = static_cast<t_sample>(x->currentEnv);
+        *out++ = static_cast<t_sample>(x->currentEnv * x->gain);
     }
     return (w + 4);
 }
@@ -225,6 +226,11 @@ void adsr_releaseshape(t_adsr_tilde *x, t_floatarg f)
     x->releaseShape = map_shape_to_exponent(f);
 }
 
+void adsr_g(t_adsr_tilde *x, t_floatarg f)
+{
+    x->gain = std::clamp(static_cast<double>(f), 0.0, 1.0);
+}
+
 void adsr_dsp(t_adsr_tilde *x, t_signal **sp)
 {
     x->samplerate = sp[0]->s_sr;
@@ -249,6 +255,7 @@ void *adsr_new(t_floatarg f)
     x->attackShape = 2.0;
     x->releaseShape = 1.0;
     x->currentEnv = 0.0;
+    x->gain = 1.0;
     x->phaseFunc = idlePhase;
     x->phase = t_adsr_phase::Idle;
 
@@ -276,5 +283,6 @@ extern "C"
         class_addmethod(adsr_tilde_class, (t_method)adsr_release, gensym("release"), A_DEFFLOAT, A_NULL);
         class_addmethod(adsr_tilde_class, (t_method)adsr_attackshape, gensym("attackshape"), A_DEFFLOAT, A_NULL);
         class_addmethod(adsr_tilde_class, (t_method)adsr_releaseshape, gensym("releaseshape"), A_DEFFLOAT, A_NULL);
+        class_addmethod(adsr_tilde_class, (t_method)adsr_g, gensym("g"), A_DEFFLOAT, A_NULL);
     }
 }
