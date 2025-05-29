@@ -47,19 +47,18 @@ void enter_phase(t_adsr_tilde *x, t_adsr_phase newPhase);
 // Helper: shaped progress with exponential curvature (linear interpolation)
 double power_lerp(double start, double end, double p, double shape)
 {
-    // p ∈ [0..1], shape ∈ [0.01, 10.0]
-    if (shape == 1.0)
+    /if (shape == 1.0)
         return start + (end - start) * p;
 
-    // Apply exponential curvature: shape < 1.0 = konkav, 1.0 = linear, > 1.0 = konvex
-    double curved = pow(p, shape);
+    double curved = descending ? 1.0 - pow(1.0 - p, shape) : pow(p, shape);
+
     return start + (end - start) * curved;
 }
 
 void startupPhase(t_adsr_tilde *x)
 {
     double p = static_cast<double>(x->currentSample) / (x->startupPhaseSamples);
-    x->currentEnv = power_lerp(x->phaseStartEnv, 0.0, p, x->attackShape);
+    x->currentEnv = power_lerp(x->phaseStartEnv, 0.0, p, 1.0);
 
     if (++x->currentSample >= x->startupPhaseSamples)
     {
@@ -71,7 +70,7 @@ void startupPhase(t_adsr_tilde *x)
 void attackPhase(t_adsr_tilde *x)
 {
     double p = static_cast<double>(x->currentSample) / (x->attackPhaseSamples);
-    x->currentEnv = power_lerp(x->phaseStartEnv, 1.0, p, 1.0);
+    x->currentEnv = power_lerp(x->phaseStartEnv, 1.0, p, x->attackShape);
 
     if (++x->currentSample >= x->attackPhaseSamples)
         enter_phase(x, t_adsr_phase::Decay);
@@ -210,12 +209,34 @@ void adsr_sustain(t_adsr_tilde *x, t_floatarg f)
 
 void adsr_attackshape(t_adsr_tilde *x, t_floatarg f)
 {
-    x->attackShape = std::clamp(static_cast<double>(f), 0.01, 10.0); // 1.0 = linear
+    double shape = std::clamp(static_cast<double>(f), -1.0, 1.0);
+
+    if (shape < 0.0)
+    {
+        // Map [-1, 0] to [0.1, 1.0]
+        x->attackShape = 1.0 + shape * 0.9;
+    }
+    else
+    {
+        // Map [0, 1] to [1.0, 10.0]
+        x->attackShape = 1.0 + shape * 9.0;
+    }
 }
 
 void adsr_releaseshape(t_adsr_tilde *x, t_floatarg f)
 {
-    x->releaseShape = 1.0 / std::clamp(static_cast<double>(f), 0.01, 10.0); // 1.0 = linear
+    double shape = std::clamp(static_cast<double>(f), -1.0, 1.0);
+
+    if (shape < 0.0)
+    {
+        // Map [-1, 0] to [0.1, 1.0]
+        x->releaseShape = 1.0 - shape * 9.0;
+    }
+    else
+    {
+        // Map [0, 1] to [1.0, 10.0]
+        x->releaseShape = 1.0 - shape * 0.9;
+    }
 }
 
 void adsr_dsp(t_adsr_tilde *x, t_signal **sp)
