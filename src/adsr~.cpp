@@ -189,31 +189,31 @@ void adsr_trigger_stop(t_adsr_tilde *x)
 // === Parameter setters with clamping ===
 void adsr_attack(t_adsr_tilde *x, t_floatarg f)
 {
-    x->attackTime = std::clamp(static_cast<double>(f), 0.0, 10000.0);                       // time in milliseconds
+    x->attackTime = clamp(static_cast<double>(f), 0.0, 10000.0);                       // time in milliseconds
     x->attackPhaseSamples = std::max(1, static_cast<int>(x->attackTime * x->sampleratems)); // Samples to process
 }
 
 void adsr_decay(t_adsr_tilde *x, t_floatarg f)
 {
-    x->decayTime = std::clamp(static_cast<double>(f), 0.0, 10000.0);                      // time in milliseconds
+    x->decayTime = clamp(static_cast<double>(f), 0.0, 10000.0);                      // time in milliseconds
     x->decayPhaseSamples = std::max(1, static_cast<int>(x->decayTime * x->sampleratems)); // Samples to process
 }
 
 void adsr_release(t_adsr_tilde *x, t_floatarg f)
 {
     double t = (!x->startAtCurrentEnv) ? startupTime : 0;
-    x->releaseTime = std::clamp(static_cast<double>(f - t), 0.0, 10000.0);                    // time in milliseconds
+    x->releaseTime = clamp(static_cast<double>(f - t), 0.0, 10000.0);                    // time in milliseconds
     x->releasePhaseSamples = std::max(1, static_cast<int>(x->releaseTime * x->sampleratems)); // Samples to process
 }
 
 void adsr_sustain(t_adsr_tilde *x, t_floatarg f)
 {
-    x->sustainLevel = std::clamp(static_cast<double>(f), 0.0, 1.0); // level in [0..1]
+    x->sustainLevel = clamp(static_cast<double>(f), 0.0, 1.0); // level in [0..1]
 }
 
 double map_shape_to_exponent(double f)
 {
-    double shape = std::clamp(f, -1.0, 1.0);
+    double shape = clamp(f, -1.0, 1.0);
     return (shape < 0.0) ? 1.0 + shape * 0.9 : 1.0 + shape * 9.0;
 }
 
@@ -229,7 +229,7 @@ void adsr_releaseshape(t_adsr_tilde *x, t_floatarg f)
 
 void adsr_g(t_adsr_tilde *x, t_floatarg f)
 {
-    x->gain = std::clamp(static_cast<double>(f), 0.0, 1.0);
+    x->gain = clamp(static_cast<double>(f), 0.0, 1.0);
 }
 
 void adsr_dsp(t_adsr_tilde *x, t_signal **sp)
