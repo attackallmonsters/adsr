@@ -1,6 +1,7 @@
 // adsr~.cpp — Pure Data external for a nonlinear ADSR envelope with clamping and validation
 
 #include "m_pd.h"
+#include "clamp.h"
 #include <cmath>
 #include <algorithm>
 
