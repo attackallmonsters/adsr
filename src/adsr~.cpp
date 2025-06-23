@@ -1,4 +1,5 @@
 // adsr~.cpp — Pure Data external for a nonlinear ADSR envelope with clamping and validation
+#pragma GCC diagnostic ignored "-Wcast-function-type"
 
 #include "m_pd.h"
 #include "clamp.h"
@@ -270,8 +271,11 @@ extern "C"
     {
         adsr_tilde_class = class_new(gensym("adsr~"),
                                      (t_newmethod)adsr_new,
-                                     0, sizeof(t_adsr_tilde),
-                                     CLASS_DEFAULT, A_DEFFLOAT, 0);
+                                     0, 
+                                     sizeof(t_adsr_tilde),
+                                     CLASS_DEFAULT, 
+                                     A_DEFFLOAT, 
+                                     0);
 
         class_addmethod(adsr_tilde_class, (t_method)adsr_dsp, gensym("dsp"), A_CANT, 0);
         CLASS_MAINSIGNALIN(adsr_tilde_class, t_adsr_tilde, currentEnv);
