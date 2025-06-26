@@ -39,6 +39,7 @@ struct t_adsr_tilde
     int attackPhaseSamples, decayPhaseSamples, releasePhaseSamples, startupPhaseSamples;
     int currentSample;
     double gain;
+    bool oneShot = false;
 };
 
 // Startup time defines the time to move the env to zero in the first step
@@ -54,8 +55,8 @@ double power_lerp(double start, double end, double p, double shape)
         return start + (end - start) * p;
 
     double curved = (end < start)
-        ? 1.0 - std::pow(1.0 - p, shape)
-        : std::pow(p, shape);
+                        ? 1.0 - std::pow(1.0 - p, shape)
+                        : std::pow(p, shape);
 
     return start + (end - start) * curved;
 }
@@ -87,7 +88,15 @@ void decayPhase(t_adsr_tilde *x)
     x->currentEnv = (1.0 - p) * (1.0 - x->sustainLevel) + x->sustainLevel;
 
     if (++x->currentSample >= x->decayPhaseSamples)
-        enter_phase(x, t_adsr_phase::Sustain);
+    {
+        if (!x->oneShot)
+            enter_phase(x, t_adsr_phase::Sustain);
+        else
+        {
+            x->phaseStartEnv = x->currentEnv;
+            enter_phase(x, t_adsr_phase::Release);
+        }
+    }
 }
 
 void sustainPhase(t_adsr_tilde *x)
@@ -180,6 +189,11 @@ void adsr_trigger_start(t_adsr_tilde *x)
 
 void adsr_trigger_stop(t_adsr_tilde *x)
 {
+    if (x->oneShot)
+    {
+        return;
+    }
+
     if (x->phase != t_adsr_phase::Idle && x->phase != t_adsr_phase::Release)
     {
         x->phaseStartEnv = x->currentEnv;
@@ -190,20 +204,20 @@ void adsr_trigger_stop(t_adsr_tilde *x)
 // === Parameter setters with clamping ===
 void adsr_attack(t_adsr_tilde *x, t_floatarg f)
 {
-    x->attackTime = clamp(static_cast<double>(f), 0.0, 10000.0);                       // time in milliseconds
+    x->attackTime = clamp(static_cast<double>(f), 0.0, 10000.0);                            // time in milliseconds
     x->attackPhaseSamples = std::max(1, static_cast<int>(x->attackTime * x->sampleratems)); // Samples to process
 }
 
 void adsr_decay(t_adsr_tilde *x, t_floatarg f)
 {
-    x->decayTime = clamp(static_cast<double>(f), 0.0, 10000.0);                      // time in milliseconds
+    x->decayTime = clamp(static_cast<double>(f), 0.0, 10000.0);                           // time in milliseconds
     x->decayPhaseSamples = std::max(1, static_cast<int>(x->decayTime * x->sampleratems)); // Samples to process
 }
 
 void adsr_release(t_adsr_tilde *x, t_floatarg f)
 {
     double t = (!x->startAtCurrentEnv) ? startupTime : 0;
-    x->releaseTime = clamp(static_cast<double>(f - t), 0.0, 10000.0);                    // time in milliseconds
+    x->releaseTime = clamp(static_cast<double>(f - t), 0.0, 10000.0);                         // time in milliseconds
     x->releasePhaseSamples = std::max(1, static_cast<int>(x->releaseTime * x->sampleratems)); // Samples to process
 }
 
@@ -231,6 +245,11 @@ void adsr_releaseshape(t_adsr_tilde *x, t_floatarg f)
 void adsr_g(t_adsr_tilde *x, t_floatarg f)
 {
     x->gain = clamp(static_cast<double>(f), 0.0, 1.0);
+}
+
+void adsr_oneshot(t_adsr_tilde *x, t_floatarg f)
+{
+    x->oneShot = f != 0.0;
 }
 
 void adsr_dsp(t_adsr_tilde *x, t_signal **sp)
@@ -271,10 +290,10 @@ extern "C"
     {
         adsr_tilde_class = class_new(gensym("adsr~"),
                                      (t_newmethod)adsr_new,
-                                     0, 
+                                     0,
                                      sizeof(t_adsr_tilde),
-                                     CLASS_DEFAULT, 
-                                     A_DEFFLOAT, 
+                                     CLASS_DEFAULT,
+                                     A_DEFFLOAT,
                                      0);
 
         class_addmethod(adsr_tilde_class, (t_method)adsr_dsp, gensym("dsp"), A_CANT, 0);
@@ -289,5 +308,6 @@ extern "C"
         class_addmethod(adsr_tilde_class, (t_method)adsr_attackshape, gensym("attackshape"), A_DEFFLOAT, A_NULL);
         class_addmethod(adsr_tilde_class, (t_method)adsr_releaseshape, gensym("releaseshape"), A_DEFFLOAT, A_NULL);
         class_addmethod(adsr_tilde_class, (t_method)adsr_g, gensym("g"), A_DEFFLOAT, A_NULL);
+        class_addmethod(adsr_tilde_class, (t_method)adsr_oneshot, gensym("oneshot"), A_DEFFLOAT, A_NULL);
     }
 }
