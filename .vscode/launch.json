@@ -9,7 +9,8 @@
         "args": [
           "-stderr",
           "-guiport", "0",
-          "/home/thomas/Documents/data/Music Production/pd/extensions/adsr/test/adsr~-help.pd" // <== path to test patch
+          //"/home/thomas/Documents/data/Music Production/pd/extensions/adsr/test/adsr~-help.pd" // <== path to test patch
+          "/home/thomas/Documents/data/Music Production/pd/extensions/jpvoice/test/main-oui.pd" // <== path to test patch
         ],
         "stopAtEntry": false,
         "cwd": "${workspaceFolder}",

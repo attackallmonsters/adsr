@@ -106,7 +106,7 @@ void sustainPhase(t_adsr_tilde *x)
 
 void releasePhase(t_adsr_tilde *x)
 {
-    double p = static_cast<double>(x->currentSample) / (x->releasePhaseSamples - 1);
+    double p = static_cast<double>(x->currentSample) / (x->releasePhaseSamples);
     x->currentEnv = power_lerp(x->phaseStartEnv, 0.0, p, x->releaseShape);
 
     if (++x->currentSample >= x->releasePhaseSamples)
@@ -244,7 +244,7 @@ void adsr_releaseshape(t_adsr_tilde *x, t_floatarg f)
 
 void adsr_g(t_adsr_tilde *x, t_floatarg f)
 {
-    x->gain = clamp(static_cast<double>(f), 0.0, 1.0);
+    x->gain = clampmin(static_cast<double>(f), 0.0);
 }
 
 void adsr_oneshot(t_adsr_tilde *x, t_floatarg f)
